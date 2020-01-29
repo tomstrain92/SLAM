@@ -41,6 +41,7 @@ ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
 ${PROJECT_SOURCE_DIR}/../vehicle_detection
 ${PROJECT_SOURCE_DIR}/../coordinate_transformation
+${PROJECT_SOURCE_DIR}/../asset_load
 ${PYTHON_INCLUDE_DIRS}
 
 )
@@ -70,6 +71,7 @@ src/Viewer.cc
 ${PROJECT_SOURCE_DIR}/../vehicle_detection/yoloDetector.cc
 ${PROJECT_SOURCE_DIR}/../vehicle_detection/yoloDetectorGPU.cc
 ${PROJECT_SOURCE_DIR}/../coordinate_transformation/estimateTransformation.cc
+${PROJECT_SOURCE_DIR}/../asset_load/loadAssets.cc
 )
 
 target_link_libraries(${PROJECT_NAME}

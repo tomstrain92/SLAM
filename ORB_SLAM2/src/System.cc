@@ -26,6 +26,7 @@
 #include <pangolin/pangolin.h>
 #include <iomanip>
 #include <estimateTransformation.h>
+#include <loadAssets.h>
 
 namespace ORB_SLAM2
 {
@@ -167,8 +168,8 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
 
 cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp,
 						const double xcoord, const double ycoord, const double heading,
-					 	std::vector<std::vector<double>> &gps_coords,
-						std::vector<std::vector<double>> &slam_coords)
+					 	std::vector<std::vector<double>> &gps_coords, std::vector<std::vector<double>> &slam_coords,
+						std::vector<double> &transform, std::vector<std::vector<double>> &asset_coords_SLAM)
 {
     if(mSensor!=RGBD)
     {
@@ -235,17 +236,44 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
 
 	}
 
-	//double scale_estimate = ((slam[0] / gps[0]) + (slam[1] / gps[1]) + (slam[2] / gps[2])) / 3;
-	std::vector<double> params;
-	cout << "number of readings: " << gps_coords.size() << endl;
-	double params0 [7] = {0.1,15,-15,20, 1, -1, 1};
-	params = runEstimation(gps_coords, slam_coords, params0);
+	// estimating the 7D coordinate transformation between GPS and SLAM.
+	int nReadings = gps_coords.size();
+	cout << "number of readings: " << nReadings << endl;
 
-	for (int i = 0; i < 7; i++)
+	if (nReadings == 10)
 	{
-		cout << params[i] << endl;
-		params0[i] = params[i];
+
+		std::cout << "transform: " << "[";
+		for (int i = 0; i < 7; i++)
+		{
+			cout << transform[i] << " ";
+		}
+		cout << "]" << endl;
+
+
+		vector<double> transform_init = transform;
+		transform = runEstimation(gps_coords, slam_coords, transform_init);
+
+
+		// loading assets near gps reading
+		std::vector<std::vector<double>> asset_coords_GPS = loadAssets(gps);
+		int nAssets = asset_coords_GPS.size();
+		std::cout << nAssets << " assets loaded" << '\n';
+		// // convert asset coords to slam map with current mapping...
+		//std::vector<std::vector<double>> asset_coords_SLAM;
+		asset_coords_SLAM.clear();
+		std::vector<double> asset_coord_SLAM;
+
+		for (int i = 0; i < nAssets; i++)
+		{
+		 	asset_coord_SLAM = transformGPSCoordinate2SLAM(transform, asset_coords_GPS[i]);
+			asset_coords_SLAM.push_back(asset_coord_SLAM);
+		}
 	}
+
+
+
+	//projectAssets(params, assetCoords, Rwc, Rwc, twc);
 
     //vector<float> q = ORB_SLAM2::Converter::toQuaternion(Rwc);
 	//cout << "Rotation: " << q[0] << ", " << q[1] << ", " << q[2] << ", " << q[3] << ", " << endl;

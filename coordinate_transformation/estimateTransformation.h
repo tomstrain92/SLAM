@@ -9,13 +9,19 @@
 #include <numpy/ndarrayobject.h>
 #include <iostream>
 #include <vector>
+#include<opencv2/core/core.hpp>
+#include <math.h>
 
-
-PyObject* create_1D_pyArray(double *array1D, int len);
+PyArrayObject* create_1D_pyArray(std::vector<double>, int len);
 
 PyArrayObject* create_2D_pyArray(std::vector<std::vector<double>> array2D);
 
 std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, const std::vector<std::vector<double>> x_SLAM,
-					double *params0);
+					std::vector<double> params0);
+
+void projectAssets(std::vector<double> transform, std::vector<std::vector<double>> asset_coords, cv::Mat cameraMatrix,
+					cv::Mat cameraTranslation, cv::Mat cameraRotation);
+
+std::vector<double> transformGPSCoordinate2SLAM(std::vector<double> transform, std::vector<double> x_GPS);
 
 #endif

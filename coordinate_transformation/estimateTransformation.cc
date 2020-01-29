@@ -3,15 +3,22 @@
 using namespace std;
 
 
-PyObject* create_1D_pyArray(double *array1D, int len)
+
+PyArrayObject* create_1D_pyArray(std::vector<double> array1D, int len)
 {
 	PyObject* pyArray; // to return
 
-	npy_intp dimensions[1] = {len};
-	pyArray = PyArray_SimpleNewFromData(1, (npy_intp*)&dimensions, NPY_DOUBLE, array1D);
+	npy_intp dims[1] = {len};
 
-	return pyArray;
+	PyArrayObject* vec_array = (PyArrayObject *) PyArray_SimpleNew(1, dims, PyArray_DOUBLE);
+	double *vec_array_pointer = (double*) PyArray_DATA(vec_array);
+
+	copy(array1D.begin(),array1D.end(),vec_array_pointer);
+
+	return vec_array;
+
 }
+
 
 // THIS IS AMAZING FOUND HERE: https://stackoverflow.com/questions/18780570/passing-a-c-stdvector-to-numpy-array-in-python
 PyArrayObject* create_2D_pyArray(std::vector<std::vector<double>> array2D)
@@ -39,7 +46,7 @@ PyArrayObject* create_2D_pyArray(std::vector<std::vector<double>> array2D)
 
 
 std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, const std::vector<std::vector<double>> x_SLAM,
-					double *params0)
+					std::vector<double> params0)
 {
 	Py_Initialize();
 	_import_array();
@@ -59,7 +66,6 @@ std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, 
 
    	// loading the detector as a pyObject - this will be passed in the code instead
    	// of detector class in code currently.
-
 	// create vector to return
 	std::vector<double> transform;
 
@@ -71,7 +77,7 @@ std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, 
 		// create pyArrays
 		pX_GPS = (PyObject*) create_2D_pyArray(x_GPS);
 		pX_SLAM = (PyObject*) create_2D_pyArray(x_SLAM);
-		pParams = create_1D_pyArray(params0, 7);
+		pParams = (PyObject*) create_1D_pyArray(params0, 7);
 
    		// create arguments and pass to estimator
 		pArgs = PyTuple_New(3);
@@ -95,4 +101,80 @@ std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, 
 
 	return transform;
 
+}
+
+
+void projectAssets(std::vector<double> transform, std::vector<std::vector<double>> assetAoords, cv::Mat cameraMatrix,
+					cv::Mat cameraTranslation, cv::Mat cameraRotation)
+{
+	// unpack transform
+	double scale = transform[0];
+	// rotations
+	double r1 = transform[1];
+	double r2 = transform[2];
+	double r3 = transform[3];
+	// create rotation matrix
+
+	// translations
+	double t1 = transform[4];
+	double t2 = transform[5];
+	double t3 = transform[6];
+
+	//double R [3][3];
+	//create_rotation_matrix(r1, r2, r3, &R);
+
+}
+
+
+std::vector<double> transformGPSCoordinate2SLAM(std::vector<double> transform, std::vector<double> x_GPS)
+{
+	Py_Initialize();
+	_import_array();
+	// loading python scripts
+	PyObject *pName, *pMod, *pPyTransformation, *pArgs, *pX_GPS, *pTransform;
+
+	PyRun_SimpleString("import sys");
+	PyRun_SimpleString("sys.path.insert(0, '/home/tom/Projects/SLAM/coordinate_transformation/')");
+
+	//std::cout << "about to import " << std::endl;
+    pName = PyUnicode_DecodeFSDefault("estimate_transformation");
+    //std::cout << "imported module" << std::endl;
+    pMod = PyImport_Import(pName);
+   	Py_DECREF(pName);
+
+	//std::cout << "imported module" << std::endl;
+
+	// create vector to return
+	std::vector<double> x_slam;
+
+   	pPyTransformation = PyObject_GetAttrString(pMod, "transform_coordinate");
+   	Py_DECREF(pMod);
+
+   	if (pPyTransformation && PyCallable_Check(pPyTransformation)){
+		//std::cout << "callable" << '\n';
+		// create pyArrays
+		pX_GPS = (PyObject*) create_1D_pyArray(x_GPS, 3);
+		pTransform = (PyObject*) create_1D_pyArray(transform, 7);
+
+   		// create arguments and pass to transformation functino
+		pArgs = PyTuple_New(2);
+		PyTuple_SetItem(pArgs, 0, pTransform);
+		PyTuple_SetItem(pArgs, 1, pX_GPS);
+
+		PyObject* pPyX_SLAM = PyObject_CallObject(pPyTransformation, pArgs);
+
+		PyArrayObject *pArrX_SLAM= reinterpret_cast<PyArrayObject*>(pPyX_SLAM);
+		double *pX_SLAM = reinterpret_cast<double*>(PyArray_DATA(pArrX_SLAM));
+
+		for (npy_intp i = 0; i<3; i++)
+		{
+			//std::cout << pX_SLAM[i] << '\n';
+			x_slam.push_back(pX_SLAM[i]);
+		}
+   		Py_DECREF(pArgs);
+
+	}
+	Py_DECREF(pPyTransformation);
+
+	return x_slam;
 }

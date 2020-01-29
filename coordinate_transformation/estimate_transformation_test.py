@@ -3,6 +3,7 @@ from estimate_transformation import estimate_transformation
 from scipy.spatial.transform import Rotation
 import matplotlib.pyplot as plt
 
+
 if __name__ == "__main__":
 	# creating some dummy data
 
@@ -18,12 +19,12 @@ if __name__ == "__main__":
 	# create corresponding slam data..
 
 	mean = [0,0,0]
-	sigma = 0.2
+	sigma = 0.05
 	cov = [[sigma,0,0],[0,sigma,0],[0,0,sigma]]
 
 	x_SLAM = np.empty((0,3))
 	for x in x_GPS:
-	 	x_SLAM = np.vstack([x_SLAM, scale * R.apply(x) + t]) + np.random.multivariate_normal(mean, cov, 1)
+	 	x_SLAM = np.vstack([x_SLAM, (scale * R.apply(x)) + t]) + np.random.multivariate_normal(mean, cov, 1)
 
 	np.set_printoptions(suppress=True)
 	print("x_SLAM: ")
@@ -37,12 +38,11 @@ if __name__ == "__main__":
 	# plotting results
 	scale = params[0]
 	R = Rotation.from_euler('zyx', [params[1],params[2],params[3]], degrees=True)
-	t = np.array([params[4:]])
+	t = np.array(params[4:])
 
-	for ind, x in enumerate(x_GPS):
+	for ind, gps in enumerate(x_GPS):
 		plt.plot(x_SLAM[ind,0], x_SLAM[ind,1], 'bo', alpha = 0.2)
-		slam_transform = scale * R.apply(x) + t
-		slam = slam_transform[0]
-		plt.plot(slam[0], slam[1], 'k+')
+		slam_transform = scale * R.apply(gps) + t
+		plt.plot(slam_transform[0], slam_transform[1], 'k+')
 
 	plt.show()

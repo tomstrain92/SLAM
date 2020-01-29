@@ -72,7 +72,7 @@ public:
     // Input depthmap: Float (CV_32F).
     // Returns the camera pose (empty if tracking fails).
     cv::Mat TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const double xcoord, const double ycoord, const double heading,
-		std::vector<std::vector<double>> &gps_coords, std::vector<std::vector<double>> &slam_coords);
+		std::vector<std::vector<double>> &gps_coords, std::vector<std::vector<double>> &slam_coords, std::vector<double> &transform, std::vector<std::vector<double>> &asset_coords_SLAM);
 
     // Proccess the given monocular frame
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.

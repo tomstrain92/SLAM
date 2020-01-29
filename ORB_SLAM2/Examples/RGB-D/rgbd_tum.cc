@@ -85,6 +85,10 @@ int main(int argc, char **argv)
 
 	// vectors to keep coords in.
 	std::vector<std::vector<double>> gps_coords, slam_coords;
+	// initial transformation
+	std::vector<double> transform = {0.1,15,-15,20, 1, -1, 1};
+	// to store asset coords in SLAM
+	std::vector<std::vector<double>> asset_coords_SLAM;
 
     // Main loop
     cv::Mat imRGB, imD;
@@ -114,7 +118,14 @@ int main(int argc, char **argv)
 #endif
 
         // Pass the image to the SLAM system
-        SLAM.TrackRGBD(imRGB,imD,tframe,xcoord,ycoord,heading,gps_coords,slam_coords);
+        SLAM.TrackRGBD(imRGB,imD,tframe,xcoord,ycoord,heading,gps_coords,slam_coords,transform,asset_coords_SLAM);
+
+		std::cout << "Asset SLAM coords: " << '\n';
+		int nAssets = asset_coords_SLAM.size();
+		for (int i = 0; i < nAssets; i++)
+		{
+			std::cout << asset_coords_SLAM[i][0] << ", " << asset_coords_SLAM[i][1] << ", " << asset_coords_SLAM[i][2] << '\n';
+		}
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();

@@ -15,13 +15,25 @@ int main(int argc, char** argv){
 
 	x_SLAM = {{1,3,1},{2,3,0.5},{2,3,1},{-3,4,6},{-1,2,4},{2,1,1},{-2,3,0.1},{0.4,11,1},{-3,8,1},{-12,0.2,3.6}};
 
- 	double params0 [7] = {0.1,-10,-25,-1,0,2,-2};
-	std::vector<double> params_solve;
+ 	std::vector<double> params_init = {0.1,-10,-25,-1,0,2,-2};
+	std::vector<double> params;
 
-	params_solve = runEstimation(x_GPS, x_SLAM, params0);
-
-	for (int i = 0; i < 7; i++)
+	// simulating loop
+	for (int iLoop = 0; iLoop < 10; iLoop++)
 	{
-		std::cout << params_solve[i] << '\n';
+
+		params = runEstimation(x_GPS, x_SLAM, params_init);
+		params_init = params;
+
+		for (int i = 0; i < 7; i++)
+		{
+			std::cout << params[i] << '\n';
+		}
+
+		std::vector<double> x_slam_1 = transformGPSCoordinate2SLAM(params, x_GPS[0]);
+		for (int i = 0; i < 3; i++)
+		{
+			std::cout << x_slam_1[i] << std::endl;
+		}
 	}
 }
