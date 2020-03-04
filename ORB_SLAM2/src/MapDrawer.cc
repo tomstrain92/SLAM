@@ -30,14 +30,17 @@ namespace ORB_SLAM2
 
 MapDrawer::MapDrawer(Map* pMap, const string &strSettingPath):mpMap(pMap)
 {
+	std::cout << "loaded" << endl;
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
-
     mKeyFrameSize = fSettings["Viewer.KeyFrameSize"];
+	std::cout << "2" << endl;
     mKeyFrameLineWidth = fSettings["Viewer.KeyFrameLineWidth"];
     mGraphLineWidth = fSettings["Viewer.GraphLineWidth"];
     mPointSize = fSettings["Viewer.PointSize"];
     mCameraSize = fSettings["Viewer.CameraSize"];
     mCameraLineWidth = fSettings["Viewer.CameraLineWidth"];
+	std::cout << "loaded" << endl;
+
 
 }
 

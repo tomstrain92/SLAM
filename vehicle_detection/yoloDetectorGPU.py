@@ -45,25 +45,22 @@ def run_inference(net, img):
 		x, y, w, h = bounds # x,y are centre.
 		if cat.decode("utf-8") in vehicle_classes:
 			vehicle_boxes = np.append(vehicle_boxes,
-				np.array([[int(x - w / 2) - buffer, int(y - h / 2) - buffer,
-				 		   int(w) + buffer, int(h) + buffer]]))
+								np.array([[int(x - w / 2) - buffer,
+										   int(y - h / 2) - buffer,
+								 		   int(w) + buffer, int(h) + buffer]]))
 		# plotting results if you so wish
 		if show:
-
 			cv2.rectangle(img, (int(x - w / 2), int(y - h / 2)),
-				(int(x + w / 2), int(y + h / 2)), (255, 0, 0), 2)
+				(int(x + w / 2), int(y + h / 2)), (0, 0, 255), 5)
 
-			cv2.putText(img, str(cat.decode("utf-8")),(int(x),int(y)),
-				cv2.FONT_HERSHEY_COMPLEX,1,(255,255,0))
-
+		#cv2.putText(img, str(cat.decode("utf-8")),(int(x),int(y)),
+			#cv2.FONT_HERSHEY_COMPLEX,1,(255,255,0))
 	if show:
 		cv2.imshow("output", img)
 		cv2.waitKey(0)
 
-	#print(vehicle_boxes)
-	num_vehicles = int(len(vehicle_boxes)/4)
+	#num_vehicles = int(len(vehicle_boxes)/4)
 	#print("detection took {:f} seconds, {:d} vehicles found".format(end-start,num_vehicles))
-	vehicle_boxes = vehicle_boxes
 	return vehicle_boxes
 
 
@@ -71,4 +68,4 @@ if __name__ == '__main__':
 
 	detector = load_detector()
 	img = cv2.imread("../cars.jpg")
-	vehicle_boxes = run_inference(detector,img)
+	[vehicle_boxes, img_vehicles] = run_inference(detector,img)

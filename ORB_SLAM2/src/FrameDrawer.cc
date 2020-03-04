@@ -20,6 +20,7 @@
 
 #include "FrameDrawer.h"
 #include "Tracking.h"
+#include "System.h"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -84,7 +85,7 @@ cv::Mat FrameDrawer::DrawFrame()
                 cv::line(im,vIniKeys[i].pt,vCurrentKeys[vMatches[i]].pt,
                         cv::Scalar(0,255,0));
             }
-        }        
+        }
     }
     else if(state==Tracking::OK) //TRACKING
     {

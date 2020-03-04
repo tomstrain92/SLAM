@@ -125,6 +125,7 @@ Eigen::Matrix<double,3,1> Converter::toVector3d(const cv::Point3f &cvPoint)
 
 Eigen::Matrix<double,3,3> Converter::toMatrix3d(const cv::Mat &cvMat3)
 {
+	
     Eigen::Matrix<double,3,3> M;
 
     M << cvMat3.at<float>(0,0), cvMat3.at<float>(0,1), cvMat3.at<float>(0,2),
@@ -146,6 +147,25 @@ std::vector<float> Converter::toQuaternion(const cv::Mat &M)
     v[3] = q.w();
 
     return v;
+}
+
+std::vector<float> Converter::euler_angles(const cv::Mat &M)
+{
+	Eigen::Matrix<double,3,3> eigMat;
+	eigMat << -M.at<float>(0,0), M.at<float>(0,1), M.at<float>(0,2),
+         	  -M.at<float>(1,0), M.at<float>(1,1), M.at<float>(1,2),
+              M.at<float>(2,0), -M.at<float>(2,1), -M.at<float>(2,2);
+
+    Eigen::Quaterniond q(eigMat);
+	auto euler = q.toRotationMatrix().eulerAngles(0, 1, 2);
+	//std::cout << "Euler from quaternion in roll, pitch, yaw"<< std::endl << euler << std::endl;
+	std::vector<float> euler_angles(3);
+	euler_angles[0] = euler(0);
+	euler_angles[1] = euler(1);
+	euler_angles[2] = euler(2);
+
+	return euler_angles;
+
 }
 
 } //namespace ORB_SLAM

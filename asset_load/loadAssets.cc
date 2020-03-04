@@ -56,7 +56,7 @@ std::vector<std::vector<double>> loadAssets(std::vector<double> vdGPS_coords)
 			double asset_x = pAssets[3 * i];
 			double asset_y = pAssets[3 * i + 1];
 			double asset_z = pAssets[3 * i + 2];
-			//std::cout << asset_x << ", " << asset_y << ", " << asset_z << '\n';
+			//std::cout << asset_x << ", " << asset_z << ", " << asset_y << '\n';
 			asset_coords.push_back({asset_x, asset_y, asset_z});
 		}
 		Py_DECREF(pArgs);

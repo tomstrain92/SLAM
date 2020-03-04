@@ -157,6 +157,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     std::vector<cv::Rect_<int>> boxes;
     boxes = runInference(pNet,rgbImage);
 
+
     for (int j = 0; j < boxes.size(); j++){
         rectangle(rgbImage, boxes[j], Scalar(0,0,0), 2);
     }

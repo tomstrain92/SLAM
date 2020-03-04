@@ -27,6 +27,7 @@
 #include <iomanip>
 #include <estimateTransformation.h>
 #include <loadAssets.h>
+#include <KeyFrame.h>
 
 namespace ORB_SLAM2
 {
@@ -71,17 +72,20 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         cerr << "Falied to open at: " << strVocFile << endl;
         exit(-1);
     }
-    cout << "Vocabulary loaded!" << endl << endl;
+    cout << "Vocabulary loaded!" << endl;
 
     //Create KeyFrame Database
     mpKeyFrameDatabase = new KeyFrameDatabase(*mpVocabulary);
+
 
     //Create the Map
     mpMap = new Map();
 
     //Create Drawers. These are used by the Viewer
     mpFrameDrawer = new FrameDrawer(mpMap);
+
     mpMapDrawer = new MapDrawer(mpMap, strSettingsFile);
+
 
     //Initialize the Tracking thread
     //(it will live in the main thread of execution, the one that called this constructor)
@@ -96,7 +100,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpLoopCloser = new LoopClosing(mpMap, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR);
     mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
 
-    //Initialize the Viewer thread and launch
+    //Initialize the Viewer thread and launchstd::vector<std::vector<float>> asset_points
     if(bUseViewer)
     {
         mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile);
@@ -169,7 +173,8 @@ cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const
 cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp,
 						const double xcoord, const double ycoord, const double heading,
 					 	std::vector<std::vector<double>> &gps_coords, std::vector<std::vector<double>> &slam_coords,
-						std::vector<double> &transform, std::vector<std::vector<double>> &asset_coords_SLAM)
+						std::vector<double> &transform, std::vector<std::vector<double>> &asset_coords_SLAM,
+						std::vector<std::vector<float>> &asset_points)
 {
     if(mSensor!=RGBD)
     {
@@ -211,54 +216,87 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
     }
     }
 
+
+	// new pose information...
+
+	//cout << Rwc << endl;
+	//cout << twc << endl;
+
     cv::Mat Tcw = mpTracker->GrabImageRGBD(im,depthmap,timestamp);
-    // getting pose information
-    cv::Mat Rwc = Tcw.rowRange(0,3).colRange(0,3).t(); // Rotation information
-    cv::Mat twc = -Rwc*Tcw.rowRange(0,3).col(3); // translation information
+	//cv::Mat lit = Tcw_tracker;
+    //getting pose information
+    //cv::Mat Rwc = Tcw.rowRange(0,3).colRange(0,3).t(); // Rotation information
+    //cv::Mat twc = -Rwc*Tcw.rowRange(0,3).col(3); // translation information
+	//const vector<KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
+
+	//cv::Mat Trw = cv::Mat::eye(4,4,CV_32F);
+	//cv::Mat Two = vpKFs[0]->GetPoseInverse();
+	//Trw = Trw*vpKFs[vpKFs.size()-1]->GetPose()*Two; // get the pose of the reference keyframe
+	//cout << "Trw" << Trw << endl;
+	//cv::Mat Tcw_new = lit*Trw; // compose the transform to get the pose of the frame
+
+	//cv::Mat Rwc_new = Tcw_new.rowRange(0,3).colRange(0,3).t();
+	//cv::Mat twc_new = -Rwc*Tcw.rowRange(0,3).col(3);
+
+	// as it was - comparing the difference
+	cv::Mat Rwc = Tcw.rowRange(0,3).colRange(0,3).t();
+	cv::Mat twc = -Rwc*Tcw.rowRange(0,3).col(3);
+
+	//cout << "old translation: " << twc_tracker << endl;
+
+	//cout << twc << endl;
+
+	std::vector<float> euler_angles;
+	euler_angles = Converter::euler_angles(Rwc);
+
+	//vector<float> q = ORB_SLAM2::Converter::toQuaternion(Rwc);
+	//cout << "Rotation: " << q[0] << ", " << q[1] << ", " << q[2] << ", " << q[3] << ", " << endl;
+
 
 	// CAN I just add it here?
 
     cout << "Translation: " << twc << endl;
-	cout << "GPS: " << xcoord << " " << ycoord << " " << heading << endl;
+	//cout << "GPS: " << xcoord << " " << ycoord << " " << heading << endl;
 
 	std::vector<double> slam, gps;
 
 	slam = twc;
-	gps = {xcoord, ycoord, 2.5};
+	slam = {slam[0],slam[1],slam[2]};
+	gps = {xcoord, ycoord, 2.3};
 
 	slam_coords.push_back(slam);
 	gps_coords.push_back(gps);
 
-	if (gps_coords.size() > 10)
+	int min_readings = 20;
+
+	if (gps_coords.size() > min_readings)
 	{
 		slam_coords.erase(slam_coords.begin());
 		gps_coords.erase(gps_coords.begin());
-
 	}
 
 	// estimating the 7D coordinate transformation between GPS and SLAM.
 	int nReadings = gps_coords.size();
-	cout << "number of readings: " << nReadings << endl;
-
-	if (nReadings == 10)
-	{
-
-		std::cout << "transform: " << "[";
-		for (int i = 0; i < 7; i++)
-		{
-			cout << transform[i] << " ";
-		}
-		cout << "]" << endl;
-
-
+	// cout << "number of readings: " << nReadings << endl;
+	//
+	if (nReadings == -1)
+	 {
 		vector<double> transform_init = transform;
-		transform = runEstimation(gps_coords, slam_coords, transform_init);
-
+		transform_init[4] = gps[0];
+		transform_init[5] = gps[1];
+		transform_init[6] = gps[2];
 
 		// loading assets near gps reading
 		std::vector<std::vector<double>> asset_coords_GPS = loadAssets(gps);
 		int nAssets = asset_coords_GPS.size();
 		std::cout << nAssets << " assets loaded" << '\n';
+
+		// skip if no assets
+		//if(nAssets > 0)
+		//{
+		//	transform = runEstimation(gps_coords, slam_coords, transform_init);
+
+		//}
 		// // convert asset coords to slam map with current mapping...
 		//std::vector<std::vector<double>> asset_coords_SLAM;
 		asset_coords_SLAM.clear();
@@ -266,17 +304,16 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
 
 		for (int i = 0; i < nAssets; i++)
 		{
-		 	asset_coord_SLAM = transformGPSCoordinate2SLAM(transform, asset_coords_GPS[i]);
+			asset_coord_SLAM = transformGPSCoordinate2SLAM(transform, asset_coords_GPS[i]);
 			asset_coords_SLAM.push_back(asset_coord_SLAM);
 		}
+
+		asset_points = projectAssets(asset_coords_SLAM, -Rwc, twc, Tcw);
+		//plotAssetsAndCamera(asset_coords_GPS, gps_coords, asset_coords_SLAM, slam_coords, im, asset_points, euler_angles);
+
 	}
+	// plotting..
 
-
-
-	//projectAssets(params, assetCoords, Rwc, Rwc, twc);
-
-    //vector<float> q = ORB_SLAM2::Converter::toQuaternion(Rwc);
-	//cout << "Rotation: " << q[0] << ", " << q[1] << ", " << q[2] << ", " << q[3] << ", " << endl;
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;

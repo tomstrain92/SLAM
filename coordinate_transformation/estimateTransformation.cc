@@ -1,7 +1,12 @@
 #include <estimateTransformation.h>
+#include "Converter.h"
+#include "math.h"
+
+#define PI 3.14159265
 
 using namespace std;
 
+namespace plt = matplotlibcpp;
 
 
 PyArrayObject* create_1D_pyArray(std::vector<double> array1D, int len)
@@ -84,6 +89,7 @@ std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, 
 		PyTuple_SetItem(pArgs, 0, pX_GPS);
 		PyTuple_SetItem(pArgs, 1, pX_SLAM);
 		PyTuple_SetItem(pArgs, 2, pParams);
+#define WITH_OPENCV
 
 		PyObject* pPyTransform = PyObject_CallObject(pPyEstimator, pArgs);
 
@@ -102,27 +108,100 @@ std::vector<double> runEstimation(const std::vector<std::vector<double>> x_GPS, 
 	return transform;
 
 }
+#define WITH_OPENCV
 
 
-void projectAssets(std::vector<double> transform, std::vector<std::vector<double>> assetAoords, cv::Mat cameraMatrix,
-					cv::Mat cameraTranslation, cv::Mat cameraRotation)
+std::vector<std::vector<float>> projectAssets(std::vector<std::vector<double>> asset_coords,
+	 cv::Mat camera_rotation, cv::Mat camera_translation, cv::Mat Tcw)
 {
-	// unpack transform
-	double scale = transform[0];
-	// rotations
-	double r1 = transform[1];
-	double r2 = transform[2];
-	double r3 = transform[3];
-	// create rotation matrix
+	// camera parameters
+	float fx = 1029.0;
+	float fy = 1133.0;
+	float cx = 640.0;
+	float cy = 512.0;
+	float m = 2 * cx;
+	float n = 2 * cy;
 
-	// translations
-	double t1 = transform[4];
-	double t2 = transform[5];
-	double t3 = transform[6];
+	// get rotations
+	float R11 = camera_rotation.at<float>(0,0);
+	float R12 = camera_rotation.at<float>(0,1);
+	float R13 = camera_rotation.at<float>(0,2);
 
-	//double R [3][3];
-	//create_rotation_matrix(r1, r2, r3, &R);
+	float R21 = camera_rotation.at<float>(1,0);
+	float R22 = camera_rotation.at<float>(1,1);
+	float R23 = camera_rotation.at<float>(1,2);
 
+	float R31 = camera_rotation.at<float>(2,0);
+	float R32 = camera_rotation.at<float>(2,1);
+	float R33 = camera_rotation.at<float>(2,2);
+
+	// and translations
+	float t1 = camera_translation.at<float>(0);
+	float t2 = camera_translation.at<float>(1);
+	float t3 = camera_translation.at<float>(2);
+
+	// Tcw matrix..
+	float T11 = camera_rotation.at<float>(0,0);
+	float T12 = camera_rotation.at<float>(0,1);
+	float T13 = camera_rotation.at<float>(0,2);
+	float T14 = camera_rotation.at<float>(0,3);
+
+	float T21 = camera_rotation.at<float>(1,0);
+	float T22 = camera_rotation.at<float>(1,1);
+	float T23 = camera_rotation.at<float>(1,2);
+	float T24 = camera_rotation.at<float>(0,3);
+
+	float T31 = camera_rotation.at<float>(2,0);
+	float T32 = camera_rotation.at<float>(2,1);
+	float T33 = camera_rotation.at<float>(2,2);
+	float T34 = camera_rotation.at<float>(2,3);
+
+	float T41 = camera_rotation.at<float>(3,0);
+	float T42 = camera_rotation.at<float>(3,1);
+	float T43 = camera_rotation.at<float>(3,2);
+	float T44 = camera_rotation.at<float>(3,3);
+
+	std::cout << "camera slam position: [" << t1 << ", " << t2 << ", " << t3 << "]" <<'\n';
+
+	// points to return.
+	std::vector<std::vector<float>> asset_points;
+	// convert each of the asset_coords
+	int nAssets = asset_coords.size();
+	for(int i = 0; i < nAssets; i++)
+	{
+
+		// translate in the frame of the camera in SLAM world
+		float x_asset_SLAM = (float) asset_coords[i][0];
+		float y_asset_SLAM = (float) asset_coords[i][1];
+		float z_asset_SLAM = (float) asset_coords[i][2];
+		//std::cout << "asset slam position: [" << x_asset_SLAM << ", " << y_asset_SLAM << ", " << z_asset_SLAM<< "]" <<'\n';
+
+
+		float x_Tcw = (T11 * x_asset_SLAM) + (T12 * y_asset_SLAM) + (T13 * z_asset_SLAM) + T14;
+		float y_Tcw = (T21 * x_asset_SLAM) + (T22 * y_asset_SLAM) + (T23 * z_asset_SLAM) + T24;
+		float z_Tcw = (T31 * x_asset_SLAM) + (T32 * y_asset_SLAM) + (T33 * z_asset_SLAM) + T34;
+		//std::cout << "computed by Tcw: " << x_Tcw << ", " << y_Tcw << ", " << z_Tcw << "]" << '\n';
+
+		// rotate:
+		float x_cam = (R11 * (x_asset_SLAM - t1)) + (R12 * (y_asset_SLAM - t2)) + (R13 * (z_asset_SLAM - t3));
+		float y_cam = (R21 * (x_asset_SLAM - t1)) + (R22 * (y_asset_SLAM - t2)) + (R23 * (z_asset_SLAM - t3));
+		float z_cam = (R31 * (x_asset_SLAM - t1)) + (R32 * (y_asset_SLAM - t2)) + (R33 * (z_asset_SLAM - t3));
+
+		//std::cout << "computed by R and t : " << x_cam << ", " << y_cam << ", " << z_cam << "]" << '\n';
+
+		// project:
+		float u = (fx * (x_Tcw / z_Tcw)) + cx;
+		float v = (fy * (y_Tcw / z_Tcw)) + cy;
+		// if in image create point and add to vector
+		if (u > 0.0 && u < m && v > 0.0 && v < n)
+		{
+			//std::cout << "pixels: [" << u << ", " << v << "]" << '\n';
+			std::vector<float> point = {u,v};
+			asset_points.push_back(point);
+		}
+	}
+
+	return asset_points;
 }
 
 
@@ -138,7 +217,7 @@ std::vector<double> transformGPSCoordinate2SLAM(std::vector<double> transform, s
 
 	//std::cout << "about to import " << std::endl;
     pName = PyUnicode_DecodeFSDefault("estimate_transformation");
-    //std::cout << "imported module" << std::endl;
+    //std::cout << "imported module" #define WITH_OPENCV
     pMod = PyImport_Import(pName);
    	Py_DECREF(pName);
 
@@ -147,7 +226,7 @@ std::vector<double> transformGPSCoordinate2SLAM(std::vector<double> transform, s
 	// create vector to return
 	std::vector<double> x_slam;
 
-   	pPyTransformation = PyObject_GetAttrString(pMod, "transform_coordinate");
+   	pPyTransformation = PyObject_GetAttrString(pMod, "inverse_transform_coordinate");
    	Py_DECREF(pMod);
 
    	if (pPyTransformation && PyCallable_Check(pPyTransformation)){
@@ -177,4 +256,163 @@ std::vector<double> transformGPSCoordinate2SLAM(std::vector<double> transform, s
 	Py_DECREF(pPyTransformation);
 
 	return x_slam;
+}
+
+
+void plotAssetsAndCamera(std::vector<std::vector<double>> asset_coords_GPS,
+	std::vector<std::vector<double>> camera_coords_GPS,
+	std::vector<std::vector<double>> asset_coords_SLAM,
+	std::vector<std::vector<double>> camera_coords_SLAM,
+	cv::Mat imRGB, std::vector<std::vector<float>> asset_points,
+	std::vector<float> euler_angles)
+{
+
+	// unpacking camera coordinates.
+	std::vector<double> cam_x_gps, cam_y_gps, cam_z_gps;
+	std::vector<double> cam_x_slam, cam_y_slam, cam_z_slam;
+
+	for (int i = 0; i < camera_coords_GPS.size(); i++)
+	{
+		cam_x_gps.push_back(camera_coords_GPS[i][0]);
+		cam_y_gps.push_back(camera_coords_GPS[i][1]);
+		cam_z_gps.push_back(camera_coords_GPS[i][2]);
+		cam_x_slam.push_back(camera_coords_SLAM[i][0]);
+		cam_y_slam.push_back(camera_coords_SLAM[i][1]);
+		cam_z_slam.push_back(camera_coords_SLAM[i][2]);
+	}
+	// unpacking asset coordinates.
+	std::vector<double> asset_x_gps, asset_y_gps, asset_z_gps;
+	std::vector<double> asset_x_slam, asset_y_slam, asset_z_slam;
+
+	for (int i = 0; i < asset_coords_GPS.size(); i++)
+	{
+		asset_x_gps.push_back(asset_coords_GPS[i][0]);
+		asset_y_gps.push_back(asset_coords_GPS[i][1]);
+		asset_z_gps.push_back(asset_coords_GPS[i][2]);
+		asset_x_slam.push_back(asset_coords_SLAM[i][0]);
+		asset_y_slam.push_back(asset_coords_SLAM[i][1]);
+		asset_z_slam.push_back(asset_coords_SLAM[i][2]);
+	}
+	// unpacking asset pixels
+	std::vector<float> asset_u, asset_v;
+	for (int i=0; i < asset_points.size(); i++)
+	{
+		asset_u.push_back(asset_points[i][0]);
+		asset_v.push_back(asset_points[i][1]);
+	}
+	//
+	// // plotting
+	// plt::suptitle("Camera Coordinates");
+	// plt::subplot(2,2,1);
+	// plt::plot(cam_x_gps, cam_y_gps, "o");
+	// plt::plot(asset_x_gps, asset_y_gps, "k+");
+	// plt::title("GPS");
+	// plt::axis("equal");
+	// plt::xlabel("Easting");
+	// plt::ylabel("Northing");
+
+	plt::subplot(2,2,1);
+	plt::plot(cam_x_slam, cam_y_slam, "o");
+	//plt::plot(asset_x_slam, asset_y_slam, "k+");
+
+	plt::axis("equal");
+	plt::xlabel("SLAM x coordinate");
+	plt::ylabel("SLAM y coordinate");
+
+	// plotting heading too.
+	double roll = euler_angles[0];
+	vector<vector<double>> arm_plot = createAngleArms(cam_x_slam, cam_y_slam, roll);
+	plt::plot(arm_plot[0], arm_plot[1]);
+
+	// plotting x,z. should be just zeros. (roll)
+
+	plt::subplot(2,2,2);
+	plt::plot(cam_x_slam, cam_z_slam, "o");
+	//plt::plot(asset_x_slam, asset_z_slam, "k+");
+
+	plt::axis("equal");
+	plt::xlabel("SLAM x coordinate");
+	plt::ylabel("SLAM z coordinate");
+
+	double pitch = euler_angles[1];
+	vector<vector<double>> arm_plot_2 = createAngleArms(cam_x_slam, cam_z_slam, pitch);
+	plt::plot(arm_plot_2[0], arm_plot_2[1]);
+
+
+	plt::subplot(2,2,3);
+	plt::plot(cam_y_slam, cam_z_slam, "o");
+	//plt::plot(asset_y_slam, asset_z_slam, "k+");
+
+	plt::axis("equal");
+	plt::xlabel("SLAM y coordinate");
+	plt::ylabel("SLAM z coordinate");
+
+	double yaw = euler_angles[2];
+	vector<vector<double>> arm_plot_3 = createAngleArms(cam_y_slam, cam_z_slam, yaw);
+	plt::plot(arm_plot_3[0], arm_plot_3[1]);
+
+	// plotting image
+	plt::subplot(2,2,4);
+	plt::imshow(imRGB.data, imRGB.rows, imRGB.cols, imRGB.channels());
+
+
+	std::vector<std::vector<double>> x = {cam_x_slam};
+	std::vector<std::vector<double>> y = {cam_y_slam};
+	std::vector<std::vector<double>> z = {cam_z_slam};
+
+	//estimating yaw information...
+	double zdiff = cam_z_slam[asset_points.size()-1] - cam_z_slam[0];
+	double ydiff = cam_y_slam[asset_points.size()-1] - cam_z_slam[0];
+	double xdiff = cam_x_slam[asset_points.size()-1] - cam_x_slam[0];
+
+	double angy1 = atan2(xdiff, zdiff) * PI / 180;
+	double angy2 = atan2(zdiff, xdiff) * PI / 180;
+
+	double angx1 = atan2(ydiff, zdiff) * PI / 180;
+	double angx2 = atan2(zdiff, ydiff) * PI / 180;
+
+	float angz1 = atan2(ydiff, xdiff) * PI / 180;
+	float angz2 = atan2(xdiff, ydiff) * PI / 180;
+
+	std::cout << "euler: [" << euler_angles[0] * 180 / PI << ", " << euler_angles[1] * 180 / PI << ", " << euler_angles[2] * 180 / PI << "]" <<'\n';
+	std::cout << "x: [" << angx1 << ", " << angx2 << "," << "]" <<'\n';
+	std::cout << "y: [" << angy1 << ", " << angy2 << "," << "]" <<'\n';
+	std::cout << "z: [" << angz1 << ", " << angz2 << "," << "]" <<'\n';
+	//plt::plot(asset_u, asset_v,"ro");
+
+
+	//
+	if (asset_u.size() > 0)
+	{
+	 	plt::pause(4);
+
+	}else{
+		plt::pause(0.5);
+	}
+	plt::close();
+	//plt::clf();
+
+
+}
+
+
+
+std::vector<std::vector<double>> createAngleArms(std::vector<double> coords1,
+	std::vector<double> coords2, double angle)
+{
+	double coord1_last = coords1[coords1.size()-1];
+	double coord2_last = coords2[coords2.size()-1];
+
+	double coord1_dist = coord1_last - coords1[coords1.size()-2];
+	double coord2_dist = coord2_last - coords2[coords2.size()-2];
+
+	double arm_length = sqrt((coord1_dist * coord1_dist) + (coord2_dist * coord2_dist)) / 2;
+
+	//cout << arm_length << endl;
+
+	double coord1_arm = coord1_last + sin(angle) * arm_length;
+	double coord2_arm = coord2_last + cos(angle) * arm_length;
+
+	std::vector<std::vector<double>> coords_to_plot = {{coord1_last, coord1_arm}, {coord2_last, coord2_arm}};
+	return coords_to_plot;
 }

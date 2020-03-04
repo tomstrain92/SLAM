@@ -1,38 +1,46 @@
 import numpy as np
-from estimate_transformation import estimate_transformation
+from estimate_transformation import *
 from scipy.spatial.transform import Rotation
 import matplotlib.pyplot as plt
 
 
 if __name__ == "__main__":
+
+	# transformation
+	transform = np.array([20, 10, 25, -30, 400000, -2.3, 100000])
 	# creating some dummy data
+	mean = [0,0,20]
+	cov = [[10,0,0],[0,10,0],[0,0,20]]
 
-	x_GPS = np.array([[400000.112,150000.110,2.301], [400012.123,150300.343,2.322], [400101.124,153010.674,2.123],
-					[400049.345,150012.095,2.353], [400232.123,150220.348,1.359], [400155.230,150300.991,3.013],
-					[400012.143,150300.456,0.341], [400351.124,150501.064,4.314], [401030.016,150400.123,2.850],
-					[400901.862,150018.194,2.378], [401456.739,150600.001,1.684], [400890.596,149821.897,1.031],])
+	x_SLAM = np.random.multivariate_normal(mean, cov, 20);
+	x_GPS = [transform_coordinate(transform,x) for x in x_SLAM]
 
-	scale = 0.05;
-	R = Rotation.from_euler('zyx', [10,25,-30], degrees=True);
-	t = np.array([[-1.5,1,-1]])
-
-	# create corresponding slam data..
+	x_GPS = np.stack(x_GPS, axis=0)
+	print(x_GPS)
 
 	mean = [0,0,0]
-	sigma = 0.05
+	sigma = 0
 	cov = [[sigma,0,0],[0,sigma,0],[0,0,sigma]]
-
-	x_SLAM = np.empty((0,3))
-	for x in x_GPS:
-	 	x_SLAM = np.vstack([x_SLAM, (scale * R.apply(x)) + t]) + np.random.multivariate_normal(mean, cov, 1)
 
 	np.set_printoptions(suppress=True)
 	print("x_SLAM: ")
 	print(x_SLAM)
 
 	# can we now use estimate_transformation to do it.
-	params0 = np.array([0.01,10,10,	100,-0,-1,-3])
-	params = estimate_transformation(x_GPS, x_SLAM, params0)
+	init_mean = transform
+	init_cov = [[20,0,0,0,0,0,0],
+				[0,100,0,0,0,0,0],
+				[0,0,100,0,0,0,0],
+				[0,0,0,100,0,0,0],
+				[0,0,0,0,200000,0,0],
+				[0,0,0,0,0,5,0],
+				[0,0,0,0,0,0,200000]]
+
+	params0 = np.random.multivariate_normal(init_mean, init_cov, 1);
+	params0 = params0.tolist()
+	print(params0[0])
+
+	params = estimate_transformation(x_GPS, x_SLAM, params0[0])
 	print(params)
 
 	# plotting results
@@ -40,9 +48,19 @@ if __name__ == "__main__":
 	R = Rotation.from_euler('zyx', [params[1],params[2],params[3]], degrees=True)
 	t = np.array(params[4:])
 
+	for ind, slam in enumerate(x_SLAM):
+		plt.plot(x_GPS[ind,0], x_GPS[ind,2], 'bo', alpha = 0.2)
+		gps_transform = transform_coordinate(params, slam)
+		plt.plot(gps_transform[0], gps_transform[2], 'k+')
+		plt.title('GPS')
+
+
+	plt.figure()
+	# now mapping the inverse. (from gps to slam)
 	for ind, gps in enumerate(x_GPS):
-		plt.plot(x_SLAM[ind,0], x_SLAM[ind,1], 'bo', alpha = 0.2)
-		slam_transform = scale * R.apply(gps) + t
-		plt.plot(slam_transform[0], slam_transform[1], 'k+')
+		plt.plot(x_SLAM[ind,0], x_SLAM[ind,2], 'bo', alpha = 0.2)
+		slam_transform = inverse_transform_coordinate(params, gps)
+		plt.plot(slam_transform[0], slam_transform[2], 'k+')
+		plt.title('SLAM')
 
 	plt.show()

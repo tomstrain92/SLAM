@@ -120,6 +120,8 @@ public:
 
     PyObject* pNet;
 
+	KeyFrame* mpReferenceKF;
+
     void Reset();
 
 protected:
@@ -173,7 +175,7 @@ protected:
     Initializer* mpInitializer;
 
     //Local Map
-    KeyFrame* mpReferenceKF;
+
     std::vector<KeyFrame*> mvpLocalKeyFrames;
     std::vector<MapPoint*> mvpLocalMapPoints;
 

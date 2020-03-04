@@ -36,4 +36,15 @@ int main(int argc, char** argv){
 			std::cout << x_slam_1[i] << std::endl;
 		}
 	}
+
+	std::vector<std::vector<double>> asset_coords_GPS;
+	std::vector<std::vector<double>> asset_coords_SLAM;
+
+	cv::Mat imRGB;
+	imRGB = cv::imread("../000066.jpg");
+
+	std::vector<std::vector<float>> asset_points;
+
+	plotAssetsAndCamera(asset_coords_GPS, x_GPS, asset_coords_SLAM, x_SLAM, imRGB, asset_points);
+
 }
